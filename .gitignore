@@ -1,0 +1,9 @@
+target/
+.idea/
+*.iml
+.DS_Store
+*.class
+*.jar
+*.log
+application-prod.properties
+.env
