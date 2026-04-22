@@ -7,3 +7,5 @@ target/
 *.log
 application-prod.properties
 .env
+.metals/
+.vscode/
