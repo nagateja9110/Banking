@@ -85,6 +85,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
+         ex.printStackTrace();
         return buildResponse(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "Internal Server Error",

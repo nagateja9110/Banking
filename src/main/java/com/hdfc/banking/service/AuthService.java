@@ -18,6 +18,7 @@ import com.hdfc.banking.dto.response.LoginResponse;
 import com.hdfc.banking.entity.OtpToken;
 import com.hdfc.banking.entity.User;
 import com.hdfc.banking.enums.Role;
+import com.hdfc.banking.exception.DuplicateAccountException;
 import com.hdfc.banking.exception.OtpExpiredException;
 import com.hdfc.banking.exception.UnauthorizedException;
 import com.hdfc.banking.repository.OtpTokenRepository;
@@ -42,7 +43,7 @@ public class AuthService {
     @Transactional
     public String register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already Exist");
+            throw  new DuplicateAccountException("Email already registered: " + request.getEmail());
         }
 
         User user = User.builder()
