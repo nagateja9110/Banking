@@ -1,0 +1,391 @@
+FULL STACK PROJECT GUIDE
+Banking / Fintech App
+Spring Boot  •  React  •  MySQL
+
+A day-by-day blueprint to build a production-grade banking system
+8 WeeksIntermediateJWT Auth@TransactionalAudit LogsFraud Detection
+1. Project Overview
+Brief Description
+This project guides you through building a Banking / Fintech Application - a full-stack system that simulates the core operations of a digital bank. Users can open accounts, transfer funds, view transaction histories, and receive fraud alerts. Administrators can manage users, freeze accounts, and review audit logs. The project is built using Spring Boot (backend REST API), React (frontend), and MySQL (relational database), and is designed to mirror real-world fintech systems at companies like Razorpay, PhonePe, CRED, and Paytm.
+
+Key Features
+• User registration and login with JWT authentication (access token + refresh token)
+• Account management: open SAVINGS or CURRENT accounts, check balances, view account status
+• Fund transfers with full atomicity - both debit and credit happen in a single database transaction
+• Transaction history with pagination, date filtering, and downloadable PDF statements
+• Beneficiary management: save, verify, and delete payee accounts
+• Fraud detection engine: flags suspicious transactions based on velocity, amount, and timing rules
+• Audit logging using Spring AOP - every action is recorded with user, timestamp, and IP address
+• Email notifications for logins, credits, debits, and flagged transactions
+• Admin dashboard: view all accounts, freeze/unfreeze, review fraud flags, unlock accounts
+
+Goals of This Project
+GoalWhy It MattersMaster @TransactionalCore to every fintech backend - money must never be half-transferredImplement real securityJWT, BCrypt, field masking, AES encryption - used in every production appUse Spring AOP for auditDemonstrates advanced Spring knowledge - impresses interviewers at product companiesBuild fraud detection logicShows you can write rules-based business logic beyond simple CRUDWrite meaningful testsJUnit + Mockito for transfer scenarios - proves production-readiness mindsetDeploy the full stackDocker + Railway + Vercel - gives you a live demo link for your resume
+
+
+2. Overall Project Structure
+Folder Structure
+Backend - Spring Boot (src/main/java/com/bankapp/)  config/          - SecurityConfig, CorsConfig, JwtConfig, AuditAspect  controller/      - AuthController, AccountController, TransactionController,                     BeneficiaryController, FraudController (Admin), AuditController (Admin)  service/         - AuthService, AccountService, TransactionService,                     FraudDetectionService, AuditService, NotificationService  repository/      - JPA interfaces: UserRepo, AccountRepo, TransactionRepo,                     BeneficiaryRepo, FraudFlagRepo, AuditLogRepo  entity/          - User, Account, Transaction, Beneficiary, FraudFlag, AuditLog  dto/             - Request/Response DTOs: LoginRequest, TransferRequest,                     AccountResponse (with masked account number), etc.  security/        - JwtFilter, JwtUtil, UserDetailsServiceImpl  exception/       - GlobalExceptionHandler, InsufficientFundsException,                     AccountFrozenException, DuplicateTransferException  util/            - AccountNumberGenerator, EncryptionUtil (AES-256 for PAN)  resources/       - application.yml, application-dev.yml, db/migration/ (Flyway SQLs)
+Frontend - React (src/)  api/             - axios.js (base config + interceptors), authApi.js, accountApi.js,                     transactionApi.js, adminApi.js  store/           - Zustand store: authStore.js, accountStore.js  pages/           - Login.jsx, Register.jsx, Dashboard.jsx, Transfer.jsx,                     TransactionHistory.jsx, Beneficiaries.jsx, AdminDashboard.jsx  components/      - Navbar.jsx, AccountCard.jsx, TransactionRow.jsx,                     TransferForm.jsx, FraudFlagTable.jsx, AuditLogTable.jsx  routes/          - PrivateRoute.jsx, AdminRoute.jsx  utils/           - formatCurrency.js, maskAccountNumber.js, dateHelpers.js
+Database & DevOps  db/migration/    - V1__create_users.sql, V2__create_accounts.sql,                     V3__create_transactions.sql, V4__create_audit_logs.sql  Dockerfile       - Multi-stage build: Maven build + JRE runtime image  docker-compose.yml - App + MySQL containers for local development  .github/workflows/ - CI pipeline: build, test, deploy on push to main
+Technologies and Tools
+TechnologyPurpose & Why UsedSpring Boot 3.xBackend framework - REST APIs, dependency injection, security, JPASpring Security + JWTAuthentication and authorization - industry-standard approach for APIsSpring Data JPA + HibernateORM layer - maps Java entities to MySQL tables without raw SQLFlywayDatabase migrations - version-controlled schema changes (professional practice)Spring Mail (JavaMail)Email alerts for transactions, logins, and fraud flagsSpring AOPCross-cutting concerns - audit logging without polluting business logicMySQL 8.xRelational database - transactions, foreign keys, ACID complianceReact 18 + ViteFrontend - fast SPA with component-based UIZustandLightweight state management - simpler than Redux for this scaleAxiosHTTP client with request interceptors for JWT token injectionJUnit 5 + MockitoUnit and integration testing for service and repository layersDocker + Docker ComposeContainerization - consistent local dev and production deployRailway / RenderCloud hosting for Spring Boot backendVercelStatic hosting for React frontend - free tier, automatic deploysiText (PDF)Generate PDF bank statements downloadable from the app
+Architecture (High-Level)
+The application follows a classic 3-tier architecture with clear separation between layers:
+
+Layer 1 - Frontend (React)React pages send HTTP requests to the backend via Axios. JWT tokens are stored in memory (not localStorage for security). Axios interceptors automatically attach the Bearer token to every request and silently refresh it when it expires. React Router guards routes based on user role.
+Layer 2 - Backend (Spring Boot)The JWT filter intercepts every request, validates the token, and sets the SecurityContext. Controllers receive validated DTOs and delegate to the service layer. The service layer contains all business logic (@Transactional boundaries live here). Repositories are thin JPA interfaces. Spring AOP intercepts service calls to write audit logs without any manual logging code.
+Layer 3 - Database (MySQL)All schema changes are managed by Flyway migrations. Account balances use DECIMAL(15,2) for precision - never use FLOAT for money. The @Version field on Account entities enables optimistic locking to prevent race conditions during concurrent transfers. Every fund transfer writes two ledger rows to the transactions table (debit + credit) - this is double-entry bookkeeping.
+
+
+3. Day-by-Day Implementation Plan
+The project is structured over 8 weeks (~40 working days). Each day has a focused goal - complete one day fully before moving to the next.
+
+Week 1 - Foundation, Auth & Database
+
+Day 1Spring Boot project setup & DB connection
+
+Tasks:
+1. Create Spring Boot project at start.spring.io with: Spring Web, Security, Data JPA, MySQL Driver, Flyway, Validation, Mail, Lombok
+2. Configure application.yml: datasource URL, Flyway, JPA ddl-auto=validate, logging levels
+3. Create V1__create_users_table.sql Flyway migration with all user fields (id, full_name, email, phone, password_hash, pan_number, role, failed_logins, locked, created_at)
+4. Run the app - confirm Flyway creates the table successfully
+5. Install React app with Vite: npm create vite@latest bankapp -- --template react. Install axios, react-router-dom, zustand
+
+Expected output: Spring Boot starts without errors. MySQL users table created by Flyway. React dev server runs on port 5173.
+
+Concepts used: @SpringBootApplication, Flyway migrations, application.yml, DataSource configuration
+Day 2User entity, DTOs & registration API
+
+Tasks:
+6. Create User entity with @Entity, @Table, all fields, @Version for optimistic lock
+7. Create UserRepository extending JpaRepository<User, Long>
+8. Create RegisterRequest DTO (with @NotBlank, @Email, @Size validations) and UserResponse DTO
+9. Create AuthService.register() method - hash password with BCryptPasswordEncoder, save user
+10. Create AuthController POST /api/auth/register endpoint
+11. Test with Postman: POST with valid JSON, then with invalid email (check validation error response)
+
+Expected output: POST /api/auth/register returns 201 Created with user data. Validation errors return 400 with field messages.
+
+Concepts used: Spring Data JPA, @Entity, BCrypt password hashing, Bean Validation (@Valid), @RestController
+Day 3JWT implementation - login & token filter
+
+Tasks:
+12. Add jjwt dependency to pom.xml (io.jsonwebtoken:jjwt-api, jjwt-impl, jjwt-jackson)
+13. Create JwtUtil class with generateAccessToken(user), generateRefreshToken(user), validateToken(), extractUsername()
+14. Create JwtAuthFilter extending OncePerRequestFilter - reads Bearer token from Authorization header, validates it, sets SecurityContext
+15. Configure SecurityConfig: disable CSRF, set stateless session, permit /api/auth/**, add JwtAuthFilter before UsernamePasswordAuthenticationFilter
+16. Create AuthService.login() - authenticate, generate both tokens, return LoginResponse with accessToken (15 min expiry) and refreshToken (7 days)
+17. Add POST /api/auth/refresh endpoint to issue a new access token using refresh token
+
+Expected output: POST /api/auth/login returns { accessToken, refreshToken }. Protected endpoints return 401 without a valid token.
+
+Concepts used: JWT structure, OncePerRequestFilter, Spring Security filter chain, stateless authentication
+Day 4Global exception handling & security polish
+
+Tasks:
+18. Create custom exceptions: InsufficientFundsException, AccountFrozenException, UserNotFoundException, DuplicateTransferException
+19. Create @RestControllerAdvice GlobalExceptionHandler - handle each exception with appropriate HTTP status and error body
+20. Add failed login counter to AuthService: increment User.failedLogins on each failed attempt, lock account after 3 failures
+21. Add POST /api/auth/logout endpoint - maintain a token blacklist in Redis or a DB table
+22. Implement role-based access: @PreAuthorize("hasRole('ADMIN')") on admin endpoints
+
+Expected output: Trying wrong credentials 3 times locks the account (403). All error responses have consistent JSON shape.
+
+Concepts used: @ControllerAdvice, @ExceptionHandler, @PreAuthorize, account lockout pattern
+Day 5React auth UI - login, register, token management
+
+Tasks:
+23. Build Login.jsx and Register.jsx pages with controlled form components
+24. Create authStore.js (Zustand): state = { user, accessToken }, actions = { login, logout, refreshToken }
+25. Create axios.js with base URL, request interceptor (attach Bearer token), response interceptor (on 401 ? call refresh ? retry original request)
+26. Create authApi.js: login(), register(), refreshToken(), logout()
+27. Build PrivateRoute.jsx - redirect unauthenticated users to /login
+28. Set up React Router: /, /login, /register, /dashboard (protected), /admin/* (protected + ADMIN role)
+
+Expected output: Full login/register flow works in the browser. Refreshing the page keeps the user logged in (via refresh token). Protected routes redirect correctly.
+
+Concepts used: Axios interceptors, Zustand state management, React Router, JWT token lifecycle
+Week 2 - Account Management
+
+Day 6Account entity, Flyway migration & account service
+
+Tasks:
+29. Create V2__create_accounts_table.sql: id, user_id (FK), account_number (UNIQUE), type ENUM('SAVINGS','CURRENT'), balance DECIMAL(15,2), daily_limit, status ENUM('ACTIVE','FROZEN','CLOSED'), version INT, created_at
+30. Create Account entity with @Version field (critical for optimistic locking)
+31. Create AccountRepository with findByAccountNumber(), findByUserId(), findByIdForUpdate() (using @Lock(LockModeType.PESSIMISTIC_WRITE) for transfers)
+32. Create AccountNumberGenerator utility: generates a unique 12-digit number
+33. Create AccountService.openAccount() - validate user exists, generate account number, save with default balance 0
+34. Create AccountResponse DTO with getMaskedAccountNumber() returning '****' + last 4 digits
+
+Expected output: POST /api/accounts creates a new account. GET /api/accounts returns all user accounts with masked numbers.
+
+Concepts used: DECIMAL for money, @Version optimistic locking, @Lock for pessimistic locking, DTO masking pattern
+Day 7Account dashboard UI & admin account management
+
+Tasks:
+35. Build AccountCard.jsx component showing account type, masked number, balance, and status badge
+36. Build Dashboard.jsx - fetch user accounts on mount, display in a grid of AccountCards
+37. Create accountApi.js: getMyAccounts(), getBalance(id), openAccount(type)
+38. Create accountStore.js with Zustand: accounts state, fetchAccounts action
+39. Build Admin endpoint GET /api/admin/accounts (paginated, filterable by user/status)
+40. Build AdminDashboard.jsx page with accounts table and Freeze/Unfreeze buttons
+41. Add PUT /api/admin/accounts/{id}/freeze and /unfreeze endpoints with ADMIN role guard
+
+Expected output: Dashboard shows all accounts. Admin can freeze an account from the UI. Frozen account shows a red badge.
+
+Concepts used: React useEffect for data fetching, Zustand store, pagination API design, role-based UI rendering
+Weeks 3-4 - Fund Transfers (Most Critical Phase)
+
+Day 8-9Transaction entity & the atomic transfer service
+
+Tasks:
+42. Create V3__create_transactions_table.sql: id, from_account_id (FK), to_account_id (FK), amount, type ENUM('TRANSFER','DEPOSIT','WITHDRAWAL'), status, reference_id (UNIQUE - idempotency key), description, created_at
+43. Create Transaction entity and TransactionRepository with findByFromOrToAccountId(), findByReferenceId()
+44. Implement TransactionService.transfer() with FULL atomicity:
+45.    a) Check if reference_id already exists - if yes, return existing transaction (idempotency)
+46.    b) Lock both accounts using findByIdForUpdate() - always lock in ID order to prevent deadlocks
+47.    c) Validate: source account is ACTIVE, has sufficient balance, amount within daily limit
+48.    d) Debit source account, credit destination account
+49.    e) Create one Transaction record, save all changes in one @Transactional boundary
+50. Annotate with @Transactional(isolation = Isolation.SERIALIZABLE)
+51. Trigger FraudDetectionService.checkAsync(transaction) after successful transfer using @Async
+
+Expected output: POST /api/transactions/transfer correctly debits sender and credits receiver atomically. Sending same reference_id twice returns the original transaction (idempotency).
+
+Concepts used: @Transactional isolation levels, optimistic locking, idempotency keys, @Async, deadlock prevention
+Day 10-11Transaction history, filters & transfer UI
+
+Tasks:
+52. Add GET /api/transactions/{accountId}?page=0&size=10&startDate=&endDate=&type= endpoint using Spring Data Pageable
+53. Add GET /api/transactions/{id} for single transaction detail
+54. Build TransactionHistory.jsx page with infinite scroll or pagination, date range filter, and type filter
+55. Build TransactionRow.jsx component: show debit in red, credit in green, amount, description, timestamp
+56. Build Transfer.jsx page with a multi-step form: (1) enter beneficiary account, (2) enter amount + description, (3) confirm and submit
+57. Show real-time balance update after successful transfer without page reload
+
+Expected output: Complete transfer flow works end-to-end in the browser. Transaction history shows paginated results with correct colors for debit/credit.
+
+Concepts used: Spring Data Pageable, JPQL queries, React multi-step forms, optimistic UI updates
+Week 5 - Fraud Detection & Audit Logging
+
+Day 12-13Fraud detection rules engine
+
+Tasks:
+58. Create V4__create_fraud_flags_table.sql: id, transaction_id (FK), reason, severity ENUM('LOW','MEDIUM','HIGH'), status ENUM('PENDING','REVIEWED','BLOCKED'), flagged_at
+59. Create FraudFlag entity and FraudFlagRepository
+60. Create FraudDetectionService with @Async checkFraud(Transaction txn):
+61.    Rule 1 - High velocity: count transactions from same account in last 60 minutes. Flag if > 5
+62.    Rule 2 - Large amount: flag if transfer amount > 50,000 (configurable in application.yml)
+63.    Rule 3 - Odd hours: flag if transfer between 1 AM and 5 AM
+64.    Rule 4 - New beneficiary: flag if this is the first transfer to this account number
+65. When flagged: save FraudFlag record, send alert email to admin via Spring Mail
+66. Add GET /api/admin/fraud-flags and PUT /api/admin/fraud-flags/{id}/resolve (ADMIN only)
+
+Expected output: Suspicious transactions get automatically flagged. Admin receives an email alert. Fraud flags appear in the admin dashboard.
+
+Concepts used: @Async for non-blocking execution, configurable rules via @Value, Spring Mail SMTP configuration
+Day 14Spring AOP audit logging
+
+Tasks:
+67. Create V5__create_audit_logs_table.sql: id, user_id (FK, nullable), action, entity_type, entity_id, ip_address, user_agent, metadata (TEXT for JSON), created_at
+68. Create AuditLog entity and AuditLogRepository
+69. Create @Auditable custom annotation to mark methods that need logging
+70. Create AuditAspect with @Around advice targeting @Auditable methods:
+71.    Extract current user from SecurityContext
+72.    Extract IP address from HttpServletRequest (via RequestContextHolder)
+73.    Serialize method arguments to JSON for metadata field
+74.    Save AuditLog record before AND after method execution (capture success/failure)
+75. Apply @Auditable to: login, register, transfer, freeze/unfreeze, fraud flag resolution
+76. Add GET /api/admin/audit-logs endpoint with filtering by user, action type, date range
+
+Expected output: Every annotated action creates an audit log entry with full context. Admin can search and filter the audit trail.
+
+Concepts used: Spring AOP @Around advice, custom annotations, AspectJ pointcut expressions, SecurityContextHolder
+Week 6 - PDF Statements, Beneficiaries & Email Alerts
+
+Day 15-16Beneficiary management & PDF statements
+
+Tasks:
+77. Create V6__create_beneficiaries_table.sql: id, owner_account_id (FK), beneficiary_account_no, beneficiary_name, bank_ifsc, verified, added_at
+78. Create Beneficiary entity, repository, service with add/list/delete operations
+79. Build Beneficiaries.jsx page - list saved beneficiaries, form to add new, delete button
+80. Add iText PDF library to pom.xml. Create StatementService.generatePDF(accountId, startDate, endDate):
+81.    Create PDF with bank header, account details (masked), date range
+82.    Table of transactions: date, description, debit, credit, running balance
+83.    Footer with generation timestamp
+84. Add GET /api/accounts/{id}/statement?startDate=&endDate= endpoint that streams PDF as response
+85. Add 'Download Statement' button to TransactionHistory.jsx that opens the PDF in a new tab
+
+Expected output: User can manage beneficiaries. Clicking 'Download Statement' generates and downloads a PDF with all transactions.
+
+Concepts used: iText PDF generation, streaming responses (StreamingResponseBody), file download from React
+Day 17Email notification system
+
+Tasks:
+86. Configure Spring Mail in application.yml: SMTP host (Gmail/Mailtrap for dev), username, password, SSL settings
+87. Create NotificationService with EmailTemplates:
+88.    sendLoginAlert(user, ip) - 'New login detected from IP x.x.x.x'
+89.    sendDebitAlert(user, account, amount, balance) - 'Rs. X debited from account ****1234'
+90.    sendCreditAlert(user, account, amount, balance) - 'Rs. X credited to account ****1234'
+91.    sendFraudAlert(admin, transaction) - 'Suspicious transaction flagged for review'
+92. Call notification methods from AuthService (login alert) and TransactionService (debit/credit alerts)
+93. Use @Async for all email sends so they don't slow down API responses
+94. Test all email flows using Mailtrap (free, intercepts emails in dev mode)
+
+Expected output: Login, debit, credit, and fraud events all trigger the correct email notifications. Emails are sent asynchronously without delaying API responses.
+
+Concepts used: Spring Mail, JavaMail, @Async, Mailtrap for dev testing, HTML email templates
+Week 7 - Testing & API Security
+
+Day 18-19Unit tests and integration tests
+
+Tasks:
+95. Write unit tests for TransactionService.transfer() using @ExtendWith(MockitoExtension.class):
+96.    Test: successful transfer updates both balances correctly
+97.    Test: transfer with insufficient funds throws InsufficientFundsException and rolls back
+98.    Test: transfer to frozen account throws AccountFrozenException
+99.    Test: duplicate reference_id returns existing transaction (idempotency)
+100.    Test: concurrent transfers (simulate optimistic lock exception)
+101. Write @DataJpaTest for AccountRepository: test findByAccountNumber, findByUserId
+102. Write @WebMvcTest for TransactionController: test authentication required, valid payload, error responses
+103. Write full integration test with @SpringBootTest + @AutoConfigureMockMvc for the complete transfer flow
+104. Aim for 70%+ line coverage on service layer. Run: mvn test
+
+Expected output: All tests pass. Maven Surefire generates test report. Key edge cases for the transfer service are all covered.
+
+Concepts used: JUnit 5 @Test, Mockito @Mock + @InjectMocks, @DataJpaTest, @WebMvcTest, @SpringBootTest
+Day 20API security hardening & final polish
+
+Tasks:
+105. Add rate limiting to /api/auth/login (max 10 requests/minute per IP) using Bucket4j library
+106. Add CORS configuration in SecurityConfig allowing only your frontend origin
+107. Verify all sensitive fields are masked in API responses (account number, PAN)
+108. Add request logging filter to log method, URI, user, and response status for all requests
+109. Add @Validated to all controller method parameters - ensure no unvalidated input reaches the service layer
+110. Review all SQL queries - ensure no N+1 queries (use JOIN FETCH in @Query where needed)
+111. Update React frontend: handle all error states gracefully with toast notifications
+
+Expected output: API is hardened - rate limiting, CORS locked down, all inputs validated, no sensitive data leaked in responses.
+
+Concepts used: Rate limiting with Bucket4j, CORS policy, N+1 query problem, @Validated, defensive coding
+Week 8 - Deployment & README
+
+Day 21-22Docker & deployment
+
+Tasks:
+112. Write Dockerfile for Spring Boot: multi-stage - Stage 1 builds the JAR with Maven, Stage 2 copies JAR into openjdk:17-slim image
+113. Write docker-compose.yml: two services - app (your Spring Boot image) and db (mysql:8). Set environment variables for DB credentials, app waits for DB health check
+114. Test locally: docker-compose up - entire stack should start from scratch
+115. Deploy backend to Railway: connect GitHub repo, set environment variables (DB_URL, JWT_SECRET, MAIL_PASSWORD) as Railway env vars
+116. Build React app: npm run build. Deploy dist/ folder to Vercel - connect GitHub repo
+117. Update React axios base URL to point to the Railway backend URL
+118. Create GitHub Actions workflow (.github/workflows/deploy.yml): on push to main - run tests, build JAR, trigger Railway redeploy
+
+Expected output: Live app accessible on the internet. Backend on Railway, frontend on Vercel. GitHub push triggers automatic deployment.
+
+Concepts used: Docker multi-stage builds, docker-compose networking, environment variables, CI/CD with GitHub Actions
+Day 23README, documentation & resume write-up
+
+Tasks:
+119. Write README.md with: project overview, live demo link, tech stack badges, screenshots, setup instructions (local + Docker), API documentation overview
+120. Add architecture diagram to README (draw using draw.io or Excalidraw, export as PNG)
+121. Write a 'Security Measures' section listing: JWT auth, BCrypt, AES PAN encryption, account masking, rate limiting, audit logs, account lockout
+122. Write your resume bullet points for this project:
+123.    'Built atomic fund transfer system using Spring @Transactional with SERIALIZABLE isolation, preventing race conditions via optimistic locking (@Version)'
+124.    'Implemented AOP-based audit logging capturing 100% of sensitive user actions with zero changes to business logic code'
+125.    'Designed fraud detection engine flagging suspicious transactions based on velocity, amount, and time-of-day rules'
+126. Record a 2-minute demo video: register user, open account, transfer funds, view history, download PDF statement. Upload to YouTube, link in README
+
+Expected output: Professional README with live demo, screenshots, and architecture diagram. Resume bullets written and ready.
+
+Concepts used: Technical writing, architecture documentation, resume framing of technical work
+
+
+4. Concepts to Learn
+Every concept below directly maps to code you will write. Read the brief, then implement it - that's how it sticks.
+
+Backend Concepts
+JWT Authentication (JSON Web Tokens)
+A token-based auth mechanism where the server signs a token containing user info. The client sends this token with every request - the server verifies the signature and trusts the claims. No session storage needed on the server side (stateless).
+Used in: AuthService, JwtUtil, JwtAuthFilter - login, token refresh, all protected endpoints
+@Transactional and Database Transactions
+A database transaction groups multiple SQL operations so they all succeed or all fail together (atomicity). Spring's @Transactional annotation handles this automatically. The isolation level controls how concurrent transactions see each other's data. SERIALIZABLE is the strictest - use it for money operations.
+Used in: TransactionService.transfer() - the most important method in the entire project
+Optimistic Locking with @Version
+Prevents two concurrent updates from overwriting each other. JPA adds a WHERE version = ? to every UPDATE. If two requests try to update the same account simultaneously, the second one fails with OptimisticLockException and can be retried. This is lighter than database-level locking.
+Used in: Account entity - protects the balance field from concurrent modification
+Spring AOP (Aspect-Oriented Programming)
+A way to add cross-cutting behavior (logging, security checks, transaction management) to methods without modifying the method itself. You define a Pointcut (which methods to intercept) and an Advice (what to do). @Around lets you run code before AND after a method, and even catch exceptions.
+Used in: AuditAspect - automatically logs every @Auditable service method call
+Idempotency Keys
+A technique to safely retry API calls without causing duplicate effects. The client generates a unique UUID for each transfer request. If the request is submitted twice (due to network retry), the server detects the duplicate reference_id and returns the original result instead of executing the transfer again.
+Used in: TransactionService - reference_id column with UNIQUE constraint
+Double-Entry Bookkeeping
+Every financial transaction creates two ledger entries: a debit on the sender's side and a credit on the receiver's side. The sum of all debits must equal the sum of all credits. This is how every real bank maintains financial integrity and allows auditing.
+Used in: Transaction table design, TransactionService.transfer()
+Security Concepts
+BCrypt Password Hashing
+A one-way hashing algorithm specifically designed for passwords. It is intentionally slow (to resist brute-force attacks) and automatically salted (so two identical passwords produce different hashes). Never store plain text passwords. Spring Security's BCryptPasswordEncoder handles this.
+Used in: AuthService.register() - password hashing. AuthService.login() - password verification
+AES-256 Encryption for PAN
+Symmetric encryption for sensitive data at rest (PAN/Aadhaar numbers). Unlike hashing, encryption is reversible - you can decrypt to get the original value when needed. AES-256 uses a 256-bit key and is used by banks globally to protect PII (Personally Identifiable Information).
+Used in: EncryptionUtil - encrypt on save, decrypt on read for PAN/Aadhaar fields
+Rate Limiting
+Controls how many requests a client can make in a given time window. Prevents brute-force login attacks, denial-of-service, and API abuse. Bucket4j implements a token bucket algorithm - each IP gets N tokens that refill over time. Requests that find no tokens available get a 429 Too Many Requests response.
+Used in: Login endpoint rate limiting - 10 attempts per minute per IP
+Frontend Concepts
+Axios Interceptors
+Middleware that runs before every request (to attach the JWT) and after every response (to handle 401 errors). When the access token expires, the response interceptor silently calls the refresh endpoint, gets a new token, and retries the original request - all transparently without the user seeing a login screen.
+Used in: axios.js - request interceptor (attach token), response interceptor (handle 401 + refresh)
+Zustand State Management
+A minimal, hook-based state management library for React. Simpler than Redux - no reducers, actions, or boilerplate. You define a store as a single function with state and actions. Components subscribe to only the parts of state they need, and re-render only when those parts change.
+Used in: authStore.js (user + tokens), accountStore.js (accounts list and selected account)
+
+
+5. Learning Outcomes
+Technical Skills You Will Gain
+SkillWhat You Will Be Able to DoSpring Security & JWTImplement stateless auth from scratch - access tokens, refresh tokens, role guards, filter chainsDatabase transaction designExplain ACID properties, write @Transactional code, choose isolation levels, prevent race conditionsSpring AOPBuild cross-cutting concerns (logging, auditing, security) that don't pollute business logicFinancial system designExplain double-entry bookkeeping, idempotency, account state machines, and ledger designFraud detection logicWrite rule-based systems with configurable thresholds and async executionAPI security patternsRate limiting, input validation, response masking, CORS, field encryptionTesting strategyWrite unit, integration, and end-to-end tests - know what to mock and what to test with real DBDeployment pipelineDockerize a Spring Boot app, set up environment variables, configure CI/CD with GitHub ActionsReact production patternsAxios interceptors, protected routes, Zustand stores, async state handling, error boundaries
+Interview & Real-World Impact
+Questions this project prepares you to answer:
+• "How do you prevent duplicate fund transfers?" ? Idempotency keys with unique reference_id
+• "How do you handle concurrent account updates?" ? @Version optimistic locking + SERIALIZABLE isolation
+• "How do you implement audit logging without changing every method?" ? Spring AOP @Around advice
+• "How do you secure sensitive data in the database?" ? AES-256 for PAN, BCrypt for passwords, masked in responses
+• "What happens if the server crashes mid-transfer?" ? @Transactional rolls back both debit and credit
+• "How do you design a system that scales?" ? Stateless JWT, async fraud checks with @Async, database indexing
+
+Companies where this project is directly relevant:
+CompanyRelevant BecauseRazorpay / PayU / CCAvenueCore payment processing, ledger design, fraud flags - exactly what these teams buildPhonePe / Google Pay / PaytmTransfer flows, UPI simulation, account management, real-time notificationsCRED / Fi / Jupiter / SliceModern banking UI, PDF statements, audit trails, KYC fields (PAN)Flipkart / Amazon PayPayment wallet logic, transaction history, refund flows are the same architectureAny FinTech startupEvery fintech startup needs auth, accounts, transfers, and fraud - this is the foundation
+How to Present This on Your Resume
+Resume Bullet Points (copy and customize these)Built atomic fund transfer system using Spring @Transactional (SERIALIZABLE isolation) and optimistic locking (@Version) to eliminate race conditions in concurrent account updates.Implemented AOP-based audit logging with Spring @Around advice, capturing 100% of sensitive operations (login, transfer, admin actions) without modifying any business logic.Designed a fraud detection engine that asynchronously flags transactions using velocity, amount, and time-of-day rules, triggering admin email alerts via Spring Mail.Secured sensitive user data with AES-256 field encryption (PAN), BCrypt password hashing, masked account numbers in API responses, and Bucket4j rate limiting on auth endpoints.Deployed full-stack app with Docker multi-stage builds, Railway (Spring Boot), Vercel (React), and GitHub Actions CI/CD for automated testing and deployment on every push.
+
+
+6. Optional Enhancements
+After completing the core project, these additions will further deepen your skills and differentiate your resume.
+
+Phase 1 - Intermediate Enhancements (1-2 weeks each)
+EnhancementWhat You Will LearnRedis session cacheAdd Redis to cache account balances and refresh token storage - reduces DB load and teaches cache-aside patternSpring Batch for statementsGenerate monthly PDF statements for all accounts as a nightly batch job - teaches scheduled processingWebSocket live notificationsPush real-time credit/debit alerts to the React app using Spring WebSocket + STOMP without pollingTwo-Factor Authentication (OTP)Simulate OTP via email for login and high-value transfers - teaches TOTP algorithm and UX flowSpending analytics chartAggregate transaction data by category, render with Chart.js in React - teaches GROUP BY, aggregation queriesRole: Bank TellerAdd a TELLER role with limited permissions - can view accounts but not freeze them - teaches fine-grained RBAC
+Phase 2 - Advanced Enhancements (2-4 weeks each)
+EnhancementWhat You Will LearnMigrate to MicroservicesSplit into Auth Service, Account Service, Transaction Service, Notification Service - teach API Gateway (Spring Cloud Gateway), service discovery (Eureka), and inter-service communicationApache Kafka event streamingPublish TransactionCreated events to Kafka topics - Notification Service and Fraud Service consume them independently, decoupling the servicesMachine learning fraud scoreCall a Python FastAPI fraud-scoring microservice from the Java app - teaches polyglot architecture and ML model servingCQRS patternSeparate write model (MySQL) from read model (Elasticsearch) - write transactions to MySQL, index in Elasticsearch for fast statement searchKubernetes deploymentDeploy all services on Kubernetes (Minikube locally) - teaches pods, services, ingress, ConfigMaps, and SecretsOpenAPI / Swagger docsAdd SpringDoc OpenAPI to auto-generate interactive API documentation at /swagger-ui - professional practice for any team
+Code Quality Improvements
+• Add code coverage badge to README using JaCoCo (mvn jacoco:report) - aim for 80%+ on service layer
+• Set up SonarLint IDE plugin and SonarQube in CI to catch code smells and security vulnerabilities
+• Replace all magic numbers with @ConfigurationProperties classes - all fraud thresholds, limits, and token expiry in a typed config class
+• Add request/response logging with a custom OncePerRequestFilter - log method, URI, status, and response time for every API call
+• Add Flyway undo migrations (paid feature) or always design forward-only migrations - a professional DB practice
+
+UI/UX Improvements
+• Add dark mode toggle with CSS variables and localStorage persistence
+• Build a spending heatmap calendar (like GitHub contributions) showing daily transaction volume
+• Add a balance history chart using Chart.js with a date range slider
+• Implement skeleton loading screens (placeholder cards while data fetches) - feels more professional
+• Add transaction categorization (Food, Travel, Utilities) with a pie chart breakdown
+
+Pro Tip for Interviews
+
+The single most important thing you can explain clearly: "Every fund transfer is wrapped in a single @Transactional boundary. If anything fails - validation, balance check, network issue - both the debit and credit are automatically rolled back by Spring, leaving both accounts unchanged. I also added optimistic locking with @Version on the Account entity so that if two transfers hit the same account simultaneously, only one succeeds and the other gets an OptimisticLockException - preventing a race condition where both see the same balance and double-spend." This one answer demonstrates you understand databases, concurrency, and system reliability - the three things fintech interviewers care most about.
+Banking / Fintech App   |   Project Planning Document
+
+Full Stack Project Guide  |  Spring Boot + React + MySQL	Page N
+

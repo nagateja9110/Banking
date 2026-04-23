@@ -46,6 +46,17 @@ public class User {
     @Builder.Default
     private Boolean isVerified = false;
 
+    @Version
+    private Integer version;
+
+    private String panNumber;
+
+    @Builder.Default
+    private int failedLogins=0;
+
+    @Builder.Default
+    private boolean locked=false;
+
     @CreatedDate
     @Column(updatable = false)
     private LocalDateTime createdAt;
