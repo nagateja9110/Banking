@@ -4,6 +4,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+import lombok.Builder;
 import java.math.BigDecimal;
 
 
@@ -21,5 +22,4 @@ public class TransferRequest {
     private BigDecimal amount;
 
     private String description;
-    // Optional note: "Rent payment", "Birthday gift", etc.
 }
