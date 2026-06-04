@@ -3,7 +3,7 @@ package com.hdfc.banking.service;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.data.web.SpringDataWebProperties.Pageable;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.hdfc.banking.dto.response.AccountResponse;

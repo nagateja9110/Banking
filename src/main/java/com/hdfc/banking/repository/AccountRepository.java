@@ -10,7 +10,8 @@ import org.springframework.data.repository.query.Param;
 
 import com.hdfc.banking.entity.Account;
 import com.hdfc.banking.entity.User;
-
+import com.hdfc.banking.enums.AccountStatus;
+import com.hdfc.banking.enums.AccountType;
 
 import jakarta.persistence.LockModeType;
 
@@ -23,5 +24,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Account a WHERE a.accountNumber = :accountNumber")
     Optional<Account> findByAccountNumberWithLock(@Param("accountNumber") String accountNumber);
+
+    List<Account>findByAccountStatusAndAccountType(AccountStatus accountStatus,AccountType accountType);
 
 }

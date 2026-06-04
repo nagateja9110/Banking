@@ -1,6 +1,5 @@
 package com.hdfc.banking.repository;
 
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -16,26 +15,31 @@ import com.hdfc.banking.entity.Transaction;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
-   Page<Transaction> findByFromAccountOrToAccountOrderByCreatedAtDesc(
-    Account fromAccount,
-    Account toAccount,
-    Pageable pageable
-);
+    Page<Transaction> findByFromAccountOrToAccountOrderByCreatedAtDesc(
+            Account fromAccount,
+            Account toAccount,
+            Pageable pageable);
 
+    @Query("""
+                SELECT t FROM Transaction t
+                Where (t.fromAccount=:account OR t.toAccount=:account)
+                and t.createdAt between :from and :to
+                Order by t.createdAt DESC
+            """)
+    List<Transaction> findByAccountAndDateRange(
+            @Param("account") Account account,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
 
+    @Query("""
+                SELECT COUNT(t) FROM Transaction t
+                WHERE t.fromAccount = :account
+                AND t.transactionType = 'TRANSFER'
+                AND t.createdAt >= :since
+            """)
+    long countRecentTransfers(
+            @Param("account") Account account,
+            @Param("since") LocalDateTime since);
 
-@Query("""
-    SELECT t FROM Transaction t 
-    Where (t.fromAccount=:account OR t.toAccount=:account)
-    and t.createdAt between :from and :to
-    Order by t.createdAt DESC
-""")
-   List<Transaction>findByAccountAndDateRange(
-    @Param("account") Account account, 
-    @Param("from") LocalDateTime from,
-    @Param("to") LocalDateTime to
-   );
-
-
-  Optional<Transaction>findByReferenceNumber(String referenceNumber);
+    Optional<Transaction> findByReferenceNumber(String referenceNumber);
 }

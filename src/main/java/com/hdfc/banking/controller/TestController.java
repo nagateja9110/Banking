@@ -1,13 +1,29 @@
 package com.hdfc.banking.controller;
 
 import com.hdfc.banking.exception.*;
+import com.hdfc.banking.service.InterestCalculationService;
+
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+
 import java.math.BigDecimal;
 
 // TEMPORARY controller to test exceptions — delete after verifying
 @RestController
 @RequestMapping("/test")
+@RequiredArgsConstructor
 public class TestController {
+
+    private final InterestCalculationService interestCalculationService;
+
+    @PostMapping("/trigger-interest")
+    public ResponseEntity<String> triggerInterest() {
+        interestCalculationService.calculateMonthlyInterest();
+        return ResponseEntity.ok("Interest calculation triggered");
+    }
 
     @GetMapping("/account-not-found")
     public String testNotFound() {
@@ -33,4 +49,5 @@ public class TestController {
     public String testOtpExpired() {
         throw new OtpExpiredException();
     }
+
 }

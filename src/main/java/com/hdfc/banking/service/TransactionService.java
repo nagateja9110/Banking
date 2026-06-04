@@ -34,6 +34,7 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
+    private final FraudDetectionService fraudDetectionService;
 
     @Transactional
     public TransactionResponse deposit(String accountNumber, BigDecimal amount, String email) {
@@ -139,8 +140,10 @@ public class TransactionService {
                 .referenceNumber(referenceNumber)
                 .build();
         transactionRepository.save(transaction);
+
         log.info("Transfer {} from {} to {}", request.getAmount(),
                 request.getFromAccountNumber(), request.getToAccountNumber());
+        fraudDetectionService.checkAndFlag(transaction, fromAccount);
         return mapToResponse(transaction);
 
     }
