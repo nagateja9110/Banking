@@ -7,7 +7,8 @@ import lombok.Data;
 import lombok.Builder;
 import java.math.BigDecimal;
 
-
+//added comment for testing
+@Builder
 @Data
 public class sample {
 
